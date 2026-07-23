@@ -8,7 +8,7 @@ from agent.data_feed import PoolSnapshot
 @dataclass
 class HeuristicParams:
     min_rebalance_interval_s: float = 60.0
-    min_allocation_shift_pct: float = 5.0  # Only rebalance if target vs current allocation differs by > 5%
+    min_allocation_shift_pct: float = 5.0
 
 
 @dataclass
@@ -68,7 +68,7 @@ class DecisionEngine:
             cooldown_active = elapsed < p.min_rebalance_interval_s
 
         if cooldown_active:
-            # Generate hold decisions to log that we are in cooldown
+
             for snap in snapshots:
                 decisions.append(
                     RebalanceDecision(
@@ -83,7 +83,6 @@ class DecisionEngine:
                 )
             return decisions
 
-        # 1. Calculate true yield for each pool
         pool_yields = {}
         total_yield = 0.0
         for snap in snapshots:
@@ -93,13 +92,12 @@ class DecisionEngine:
                 total_yield += y
 
         if total_yield == 0.0:
-            # If no volume anywhere, equal split target
+
             target_allocs = {s.pool: total_cap / len(snapshots) for s in snapshots}
         else:
-            # Proportional target allocation based on yield
+
             target_allocs = {pool: (y / total_yield) * total_cap for pool, y in pool_yields.items()}
 
-        # 2. Check if we need to rebalance (exceeds shift threshold)
         needs_rebalance = False
         for snap in snapshots:
             current = state.pool_allocations.get(snap.pool, 0.0)
@@ -124,8 +122,6 @@ class DecisionEngine:
                 )
             return decisions
 
-        # 3. Generate Withdraws and Moves
-        # First, process withdraws to idle from over-allocated pools
         for snap in snapshots:
             current = state.pool_allocations.get(snap.pool, 0.0)
             target = target_allocs.get(snap.pool, 0.0)
@@ -149,7 +145,6 @@ class DecisionEngine:
                         )
                     )
 
-        # Next, process moves from idle to under-allocated pools
         for snap in snapshots:
             current = state.pool_allocations.get(snap.pool, 0.0)
             target = target_allocs.get(snap.pool, 0.0)
