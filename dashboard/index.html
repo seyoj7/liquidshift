@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LiquidShift -- Autonomous Liquidity Agent</title>
+    <meta name="description" content="Real-time dashboard for the LiquidShift autonomous USDC liquidity agent on Arc testnet." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo">
+          <div class="logo-text">LiquidShift</div>
+          <span id="statusBadge" style="display: inline-flex; align-items: center"
+            ><span class="status-dot off" title="Connecting..."></span
+          ></span>
+        </div>
+        <div class="header-right">
+          <button class="btn-connect" id="btnStart" onclick="toggleAgent()" style="border-color: var(--amber); color: var(--amber)">
+            <span class="dot" style="background: var(--amber)"></span>
+            <span id="btnStartText">Start</span>
+          </button>
+          <button class="btn-connect" id="btnConnect" onclick="connectWallet()">
+            <span class="dot"></span>
+            <span id="btnConnectText">Connect Wallet</span>
+          </button>
+        </div>
+      </div>
+    </header>
+    <div class="shell">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 16px">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <h1 class="page-title" style="margin-bottom: 0">Dashboard</h1>
+          <span
+            id="cycleBadge"
+            class="badge"
+            style="
+              font-size: 0.72rem;
+              padding: 3px 8px;
+              margin-top: 4px;
+              font-family: &quot;SF Mono&quot;, &quot;Fira Code&quot;, monospace;
+              background: rgba(255, 255, 255, 0.08);
+              color: var(--text);
+              border: 1px solid rgba(255, 255, 255, 0.12);
+            "
+            >--</span
+          >
+        </div>
+        <div class="wallet-info" id="walletInfo" style="display: none">
+          <div class="wallet-info-item">
+            <span class="wallet-info-label">EVM Address</span>
+            <span class="wallet-info-value" id="evmAddr">--</span>
+          </div>
+          <div class="wallet-info-item">
+            <span class="wallet-info-label">Circle Address</span>
+            <span class="wallet-info-value" id="circleAddr">--</span>
+          </div>
+          <div class="wallet-info-item">
+            <span class="wallet-info-label">Circle Wallet ID</span>
+            <span class="wallet-info-value" id="circleId">--</span>
+          </div>
+          <div class="wallet-info-item">
+            <span class="wallet-info-label">Circle USDC Balance</span>
+            <span class="wallet-info-value" id="circleBal" style="color: var(--teal)">--</span>
+          </div>
+          <div class="wallet-info-item">
+            <span class="wallet-info-label">Mode</span>
+            <span id="circleMode"></span>
+          </div>
+        </div>
+      </div>
+      <section class="cards">
+        <div class="card">
+          <div class="card-label">Wallet Balance</div>
+          <div class="card-value" id="walletBal">--</div>
+          <div class="card-sub" id="walletAddr">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Model Capital</div>
+          <div class="card-value" id="modelCap">--</div>
+          <div class="card-sub" id="idleAmt">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Active Earnings</div>
+          <div class="card-value" style="color: var(--teal)" id="activeEarn">--</div>
+          <div class="card-sub">Agent strategy (model)</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Passive Earnings</div>
+          <div class="card-value" style="color: var(--text-dim)" id="passiveEarn">--</div>
+          <div class="card-sub">Equal-split benchmark</div>
+        </div>
+      </section>
+      <section class="charts">
+        <div class="chart-wrap">
+          <h2>Capital Allocation</h2>
+          <div class="chart-canvas-wrap">
+            <canvas id="allocChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <h2>Earnings Comparison &mdash; Active vs Passive</h2>
+          <div class="chart-canvas-wrap">
+            <canvas id="earnChart"></canvas>
+          </div>
+        </div>
+      </section>
+      <div class="table-wrap">
+        <h2>
+          Pool Signals
+          <span id="signalTime" style="font-weight: 400; font-size: 0.72rem; color: var(--text-muted)"></span>
+        </h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Pool</th>
+              <th>Vol 1 h</th>
+              <th>Vol 24 h Avg</th>
+              <th>Ratio</th>
+              <th>Liquidity</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody id="signalBody"></tbody>
+        </table>
+        <div class="empty" id="signalEmpty">Waiting for first cycle...</div>
+      </div>
+      <div class="table-wrap">
+        <h2>Decision &amp; Execution Log</h2>
+        <div class="scroll-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Pool</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th>Tx</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="logEmpty">No decisions yet.</div>
+      </div>
+      <footer class="footer">
+        LiquidShift &middot; Autonomous USDC Liquidity Agent &middot; Arc Testnet &middot; Build on Arc Hackathon &middot; Agentic Economy
+        Track
+      </footer>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
