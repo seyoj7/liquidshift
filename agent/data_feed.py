@@ -157,13 +157,30 @@ def _simulated_snapshot(pool_name: str, ts: datetime, rng: random.Random) -> Poo
     peak = profile["peak_hour_utc"]
     phase = 2 * math.pi * (hour - peak) / 24.0
     time_mult = 1.0 + 0.6 * math.cos(phase)
-    noise = 1.0 + rng.gauss(0, profile["volume_noise"])
+    
+    # Generate smooth pseudo-random noise using multiple sine waves based on the timestamp
+    t_seconds = ts.timestamp()
+    pool_offset = hash(pool_name) % 10000
+    
+    # Combine slow (hours), medium (minutes), and fast (seconds) waves
+    wave1 = math.sin(t_seconds / 3600.0 + pool_offset)
+    wave2 = math.sin(t_seconds / 600.0 + pool_offset * 2) * 0.5
+    wave3 = math.sin(t_seconds / 120.0 + pool_offset * 3) * 0.25
+    
+    smooth_noise_factor = (wave1 + wave2 + wave3) / 1.75
+    
+    noise = 1.0 + (smooth_noise_factor * profile["volume_noise"])
     noise = max(0.1, noise)
+    
     volume_1h = profile["base_volume"] * time_mult * noise
     day_of_year = ts.timetuple().tm_yday
     daily_drift = 1.0 + 0.05 * math.sin(2 * math.pi * day_of_year / 30)
     volume_24h_avg = profile["base_volume"] * daily_drift
-    liq_noise = 1.0 + rng.gauss(0, 0.02)
+    
+    # Smooth liquidity noise
+    liq_wave = math.cos(t_seconds / 1800.0 + pool_offset)
+    liq_noise = 1.0 + (liq_wave * 0.02)
+    
     liquidity = profile["base_liquidity"] * liq_noise
     vol_ratio = volume_1h / max(volume_24h_avg, 1.0)
     volatility = min(1.0, max(0.0, abs(vol_ratio - 1.0)))

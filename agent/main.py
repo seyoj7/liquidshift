@@ -54,10 +54,9 @@ class AgentLoop:
         else:
             balance = 0.0
         pool_names = [p["name"] for p in POOLS]
-        per_pool = MODEL_CAPITAL / max(len(pool_names), 1)
         self.state = AllocationState(
-            idle_usdc=0.0,
-            pool_allocations={name: per_pool for name in pool_names},
+            idle_usdc=MODEL_CAPITAL,
+            pool_allocations={name: 0.0 for name in pool_names},
         )
         self.earnings_active = 0.0
         self.earnings_passive = 0.0
@@ -108,7 +107,11 @@ class AgentLoop:
         snapshots = get_current_snapshots(self.w3)
         with self._lock:
             self.last_snapshots = snapshots
-        self._accrue_earnings(snapshots)
+        
+        # Don't accrue earnings on the very first cycle before funds are even deployed!
+        if self.cycle_count > 1:
+            self._accrue_earnings(snapshots)
+            
         decisions = self.engine.evaluate(snapshots, self.state, now=now)
         for d in decisions:
             if d.action != "hold":
