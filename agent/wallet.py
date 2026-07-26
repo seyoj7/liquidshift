@@ -23,6 +23,12 @@ def get_web3() -> Web3:
 
 
 def read_usdc_balance(w3: Web3, address: str) -> Decimal:
+    """Read the wallet's USDC-equivalent balance on Arc testnet.
+
+    On Arc testnet the native token serves as the USDC proxy, so we read
+    ``eth.get_balance`` rather than issuing an ERC-20 ``balanceOf`` call.
+    The USDC contract address is validated separately in ``connect.py``.
+    """
     checksum_address = Web3.to_checksum_address(address)
     raw_balance = w3.eth.get_balance(checksum_address)
     return Decimal(raw_balance) / Decimal(10**NATIVE_DECIMALS)

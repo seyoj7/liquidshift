@@ -234,7 +234,9 @@ function updateSignals(snaps) {
     const ratio = s.vol24h > 0 ? s.vol1h / s.vol24h : 0;
     const ratioClass = ratio >= 2 ? "color:var(--teal);font-weight:700" : ratio >= 1.5 ? "color:var(--amber)" : "";
     const barW = Math.min(100, (ratio / 3) * 100);
-    const srcBadge = '<span class="badge badge-simulated">Demo</span>';
+    const srcLabel = s.src === "live" ? "LIVE" : "SIM";
+    const srcClass = s.src === "live" ? "badge-live" : "badge-simulated";
+    const srcBadge = `<span class="badge ${srcClass}">${srcLabel}</span>`;
     html += `<tr>
       <td style="font-weight:600">${s.pool}</td>
       <td class="mono">${usd(s.vol1h, 0)}</td>
@@ -274,7 +276,7 @@ function updateLog(ledger) {
         : src === "simulated"
           ? '<span class="badge badge-simulated">Sim</span>'
           : '<span class="badge badge-skipped">--</span>')
-      : '<span class="badge badge-simulated">Demo</span>';
+      : '<span class="badge badge-simulated">SIM</span>';
     const txLink = e.tx_hash
       ? `<a href="${e.explorer_url || "https://testnet.arcscan.app/tx/" + e.tx_hash}" target="_blank" rel="noopener">${shortHash(e.tx_hash)}</a>`
       : "--";

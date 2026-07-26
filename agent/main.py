@@ -72,7 +72,13 @@ class AgentLoop:
 
     def run(self) -> None:
         self.running = True
-        print(f"\n  Agent loop thread started  interval={self.interval_s}s  " f"circle_mode={self.wallet_mode}")
+        mode = circle_mode().upper()
+        mode_icon = "\u2705" if mode == "LIVE" else "\u26a0\ufe0f"
+        print(f"\n  {mode_icon} Circle mode : {mode}")
+        if mode != "LIVE":
+            print("    Set CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, and")
+            print("    CIRCLE_WALLET_SET_ID in .env to enable live transfers.")
+        print(f"  Agent loop thread started  interval={self.interval_s}s")
         print(f"  Model capital : ${MODEL_CAPITAL:,.2f}")
         if self.wallet_address:
             print(f"  Wallet        : {self.wallet_address}")
@@ -217,6 +223,7 @@ class AgentLoop:
                         "liq": s.liquidity,
                         "src": s.source,
                         "vol": s.volatility,
+                        "timestamp": s.timestamp,
                     }
                     for s in self.last_snapshots
                 ],
@@ -359,17 +366,25 @@ class _Handler(BaseHTTPRequestHandler):
                 f"({wallet_info['mode']})"
             )
             self._json_response(result)
+        except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+            pass  # client hung up — wallet was created successfully
         except Exception as exc:
             print(f"  [Wallet] ERROR: {exc}")
-            self._json_response({"error": str(exc)}, status=500)
+            try:
+                self._json_response({"error": str(exc)}, status=500)
+            except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+                pass
 
     def _json_response(self, data: dict, status: int = 200):
         body = json.dumps(data, default=str).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self._cors_headers()
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self._cors_headers()
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+            pass  # client disconnected before we could respond
 
     def _file_response(self, name: str, mime: str):
         fp = DASHBOARD_DIR / name
@@ -377,11 +392,14 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(404, f"{name} not found in {DASHBOARD_DIR}")
             return
         body = fp.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", f"{mime}; charset=utf-8")
-        self._cors_headers()
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", f"{mime}; charset=utf-8")
+            self._cors_headers()
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
+            pass  # client disconnected before we could respond
 
     def _cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")

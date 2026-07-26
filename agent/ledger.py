@@ -1,14 +1,54 @@
 from __future__ import annotations
 import json
 import os
+import threading
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
-from dotenv import load_dotenv
 from agent.decision import RebalanceDecision
 
+# Default ledger file lives next to the project root so it survives restarts.
+_DEFAULT_LEDGER_PATH = str(Path(__file__).resolve().parent.parent / "data" / "ledger.json")
+
+_ledger_lock = threading.Lock()
 _IN_MEMORY_LEDGER: list[dict] = []
+_LEDGER_LOADED = False
+
+
+def _resolve_path(ledger_path: Optional[str] = None) -> str:
+    return ledger_path or os.getenv("LEDGER_PATH", _DEFAULT_LEDGER_PATH)
+
+
+def _ensure_loaded(ledger_path: Optional[str] = None) -> None:
+    """Load existing entries from disk into memory (once)."""
+    global _LEDGER_LOADED
+    if _LEDGER_LOADED:
+        return
+    path = Path(_resolve_path(ledger_path))
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                _IN_MEMORY_LEDGER.extend(data)
+                print(f"  [Ledger] Loaded {len(data)} entries from {path}")
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"  [Ledger] Warning: could not load {path}: {exc}")
+    _LEDGER_LOADED = True
+
+
+def _flush_to_disk(ledger_path: Optional[str] = None) -> None:
+    """Write the full in-memory ledger to disk (atomic-ish via temp file)."""
+    path = Path(_resolve_path(ledger_path))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_IN_MEMORY_LEDGER, f, indent=2, default=str)
+        tmp.replace(path)
+    except OSError as exc:
+        print(f"  [Ledger] Warning: could not write {path}: {exc}")
 
 
 def _make_entry(
@@ -63,12 +103,17 @@ def append_entry(
         gas_used=gas_used,
         explorer_url=explorer_url,
     )
-    _IN_MEMORY_LEDGER.append(entry)
+    with _ledger_lock:
+        _ensure_loaded(ledger_path)
+        _IN_MEMORY_LEDGER.append(entry)
+        _flush_to_disk(ledger_path)
     return entry
 
 
 def read_entries(ledger_path: Optional[str] = None) -> list[dict]:
-    return list(_IN_MEMORY_LEDGER)
+    with _ledger_lock:
+        _ensure_loaded(ledger_path)
+        return list(_IN_MEMORY_LEDGER)
 
 
 def print_ledger(ledger_path: Optional[str] = None) -> None:
@@ -105,3 +150,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
