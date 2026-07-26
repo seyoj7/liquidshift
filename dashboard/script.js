@@ -13,7 +13,7 @@ const usd = (n, d = 2) =>
   });
 const pct = (n) => Number(n).toFixed(1) + "%";
 const shortAddr = (a) => (a ? a.slice(0, 6) + "..." + a.slice(-4) : "--");
-const shortHash = (h) => (h ? h.slice(0, 10) + "..." : "--");
+const shortHash = (h) => (h ? h.slice(0, 5) + "..." + h.slice(-4) : "--");
 const timeStr = (iso) => {
   if (!iso) return "--";
   const d = new Date(iso);
@@ -21,10 +21,21 @@ const timeStr = (iso) => {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
+    hour12: true,
   });
 };
-const ALLOC_COLORS = ["#1c1e25", "#2dd4bf", "#f59e0b", "#a78bfa", "#f87171", "#10b981"];
+const ALLOC_COLORS = ["#2dd4bf", "#f59e0b", "#a78bfa", "#38bdf8", "#10b981", "#f87171", "#ec4899"];
+const POOL_COLORS = {
+  "Curve on Arc": "#2dd4bf",
+  "Aave USDC": "#38bdf8",
+  "Uniswap V3 USDC/USDT": "#a78bfa",
+  "Compound USDC": "#f59e0b",
+  "Balancer USDC": "#10b981",
+};
+function getPoolColor(poolName, index = 0) {
+  if (POOL_COLORS[poolName]) return POOL_COLORS[poolName];
+  return ALLOC_COLORS[index % ALLOC_COLORS.length];
+}
 let allocChart, earnChart;
 function initCharts() {
   const doughnutCtx = document.getElementById("allocChart").getContext("2d");
@@ -32,7 +43,7 @@ function initCharts() {
     type: "doughnut",
     data: {
       labels: ["Idle"],
-      datasets: [{ data: [1], backgroundColor: ["#1c1e25"], borderWidth: 1, borderColor: "#282b34" }],
+      datasets: [{ data: [1], backgroundColor: ["#1c1e25"], borderWidth: 0, borderColor: "transparent" }],
     },
     options: {
       cutout: "68%",
@@ -151,7 +162,12 @@ function update(data) {
     btnStart.disabled = false;
   }
   $("#walletBal").textContent = usd(data.wallet.balance, 6);
-  $("#walletAddr").textContent = shortAddr(data.wallet.address);
+  const wAddr = $("#walletAddr");
+  if (wAddr) {
+    wAddr.textContent = shortAddr(data.wallet.address);
+    wAddr.dataset.fullText = data.wallet.address || "";
+    wAddr.title = data.wallet.address ? "Click to copy: " + data.wallet.address : "";
+  }
   $("#modelCap").textContent = usd(data.allocation.total, 0);
   const idlePct = data.allocation.total > 0 ? ((data.allocation.idle / data.allocation.total) * 100).toFixed(0) : "0";
   $("#idleAmt").textContent = usd(data.allocation.idle, 0) + " idle (" + idlePct + "%)";
@@ -163,16 +179,32 @@ function update(data) {
   updateLog(data.ledger);
 }
 function updateAllocChart(alloc) {
-  const labels = ["Idle"];
-  const values = [alloc.idle];
-  const colors = ["#1e293b"];
+  const labels = [];
+  const values = [];
+  const colors = [];
+
+  if (alloc.idle && alloc.idle > 0) {
+    labels.push("Idle");
+    values.push(alloc.idle);
+    colors.push("#1c1e25");
+  }
+
   let i = 0;
   for (const [pool, amt] of Object.entries(alloc.pools || {})) {
-    labels.push(pool);
-    values.push(amt);
-    colors.push(ALLOC_COLORS[i % ALLOC_COLORS.length]);
-    i++;
+    if (amt > 0) {
+      labels.push(pool);
+      values.push(amt);
+      colors.push(getPoolColor(pool, i));
+      i++;
+    }
   }
+
+  if (labels.length === 0) {
+    labels.push("Idle");
+    values.push(1);
+    colors.push("#1c1e25");
+  }
+
   allocChart.data.labels = labels;
   allocChart.data.datasets[0].data = values;
   allocChart.data.datasets[0].backgroundColor = colors;
@@ -202,10 +234,7 @@ function updateSignals(snaps) {
     const ratio = s.vol24h > 0 ? s.vol1h / s.vol24h : 0;
     const ratioClass = ratio >= 2 ? "color:var(--teal);font-weight:700" : ratio >= 1.5 ? "color:var(--amber)" : "";
     const barW = Math.min(100, (ratio / 3) * 100);
-    const srcBadge =
-      s.src === "live"
-        ? '<span class="badge badge-live">Live</span>'
-        : '<span class="badge badge-simulated">Simulated</span>';
+    const srcBadge = '<span class="badge badge-simulated">Demo</span>';
     html += `<tr>
       <td style="font-weight:600">${s.pool}</td>
       <td class="mono">${usd(s.vol1h, 0)}</td>
@@ -238,12 +267,14 @@ function updateLog(ledger) {
     const actionBadge = `<span class="badge badge-${e.action || "hold"}">${(e.action || "hold").replace(/_/g, " ")}</span>`;
     const statusBadge = `<span class="badge badge-${e.status || "skipped"}">${e.status || "?"}</span>`;
     const src = e.inputs && e.inputs.source;
-    const srcBadge =
-      src === "live"
+    const isWalletCreated = e.action === "wallet_created";
+    const srcBadge = isWalletCreated
+      ? (src === "live"
         ? '<span class="badge badge-live">Live</span>'
         : src === "simulated"
           ? '<span class="badge badge-simulated">Sim</span>'
-          : '<span class="badge badge-skipped">--</span>';
+          : '<span class="badge badge-skipped">--</span>')
+      : '<span class="badge badge-simulated">Demo</span>';
     const txLink = e.tx_hash
       ? `<a href="${e.explorer_url || "https://testnet.arcscan.app/tx/" + e.tx_hash}" target="_blank" rel="noopener">${shortHash(e.tx_hash)}</a>`
       : "--";
@@ -251,7 +282,7 @@ function updateLog(ledger) {
     html += `<tr>
       <td class="mono" style="white-space:nowrap">${timeStr(e.logged_at || e.decision_timestamp)}</td>
       <td>${actionBadge}</td>
-      <td style="font-weight:500">${e.pool || "--"}</td>
+      <td style="font-weight:500;white-space:nowrap">${e.pool || "--"}</td>
       <td class="mono">${usd(e.amount_usdc || 0, 2)}</td>
       <td>${statusBadge}</td>
       <td>${srcBadge}</td>
@@ -272,9 +303,35 @@ async function poll() {
   }
 }
 let connectedAddress = null;
+function disconnectWallet() {
+  const btn = $("#btnConnect");
+  const btnText = $("#btnConnectText");
+  const info = $("#walletInfo");
+
+  connectedAddress = null;
+  localStorage.removeItem("ls_evm_addr");
+
+  btn.classList.remove("connected");
+  btnText.textContent = "Connect Wallet";
+  info.style.display = "none";
+
+  const evmEl = $("#evmAddr");
+  if (evmEl) { evmEl.textContent = "--"; evmEl.dataset.fullText = ""; }
+  const circleAddrEl = $("#circleAddr");
+  if (circleAddrEl) { circleAddrEl.textContent = "--"; circleAddrEl.dataset.fullText = ""; }
+  const circleIdEl = $("#circleId");
+  if (circleIdEl) { circleIdEl.textContent = "--"; circleIdEl.dataset.fullText = ""; }
+  const circleBalEl = $("#circleBal");
+  if (circleBalEl) { circleBalEl.textContent = "--"; }
+}
+
 async function connectWallet() {
   const btn = $("#btnConnect");
   const btnText = $("#btnConnectText");
+  if (btn.classList.contains("connected")) {
+    disconnectWallet();
+    return;
+  }
   if (typeof window.ethereum === "undefined") {
     alert("Please install MetaMask, Revu, or another EVM wallet extension.");
     return;
@@ -322,14 +379,22 @@ function showWalletInfo(data) {
   btn.disabled = false;
   btnText.textContent = shortAddr(data.evm_address);
   info.style.display = "flex";
-  $("#evmAddr").textContent = shortAddr(data.evm_address);
-  $("#evmAddr").title = data.evm_address;
-  $("#circleAddr").textContent = shortAddr(data.circle_address);
-  $("#circleAddr").title = data.circle_address || "";
-  $("#circleId").textContent = data.circle_wallet_id
+  const evmEl = $("#evmAddr");
+  evmEl.textContent = shortAddr(data.evm_address);
+  evmEl.dataset.fullText = data.evm_address || "";
+  evmEl.title = data.evm_address ? "Click to copy: " + data.evm_address : "";
+
+  const circleAddrEl = $("#circleAddr");
+  circleAddrEl.textContent = shortAddr(data.circle_address);
+  circleAddrEl.dataset.fullText = data.circle_address || "";
+  circleAddrEl.title = data.circle_address ? "Click to copy: " + data.circle_address : "";
+
+  const circleIdEl = $("#circleId");
+  circleIdEl.textContent = data.circle_wallet_id
     ? data.circle_wallet_id.slice(0, 5) + "..." + data.circle_wallet_id.slice(-4)
     : "--";
-  $("#circleId").title = data.circle_wallet_id || "";
+  circleIdEl.dataset.fullText = data.circle_wallet_id || "";
+  circleIdEl.title = data.circle_wallet_id ? "Click to copy: " + data.circle_wallet_id : "";
   $("#circleBal").textContent = usd(data.usdc_balance || 0, 6);
   const mode = data.mode || "simulated";
   const circleModeEl = $("#circleMode");
@@ -389,5 +454,28 @@ async function autoReconnect() {
   } catch (e) { }
 }
 initCharts();
+autoReconnect();
 poll();
 setInterval(poll, POLL_MS);
+
+document.addEventListener("click", (e) => {
+  const target = e.target.closest(".copyable");
+  if (!target) return;
+  const text = target.dataset.fullText || target.getAttribute("title") || target.textContent;
+  if (!text || text === "--" || text === "Copied") return;
+  const copyValue = target.dataset.fullText || (text.startsWith("Click to copy:") ? text.replace("Click to copy:", "").trim() : text);
+  if (!copyValue || copyValue === "--") return;
+
+  navigator.clipboard.writeText(copyValue).then(() => {
+    const origText = target.textContent;
+    const origColor = target.style.color;
+    target.textContent = "Copied";
+    target.style.color = "var(--green)";
+    setTimeout(() => {
+      target.textContent = origText;
+      target.style.color = origColor;
+    }, 1200);
+  }).catch(err => {
+    console.error("Clipboard copy failed:", err);
+  });
+});

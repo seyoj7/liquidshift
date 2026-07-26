@@ -24,6 +24,9 @@
             title="Connecting..."></span></span>
       </div>
       <div class="header-right">
+        <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" class="btn-faucet" id="btnFaucet" title="Open Circle Faucet">
+          <span>Faucet ↗</span>
+        </a>
         <button class="btn-connect" id="btnConnect" onclick="connectWallet()">
           <span class="dot"></span>
           <span id="btnConnectText">Connect Wallet</span>
@@ -50,15 +53,15 @@
         <div class="wallet-info" id="walletInfo" style="display: none">
           <div class="wallet-info-item">
             <span class="wallet-info-label">EVM Address</span>
-            <span class="wallet-info-value" id="evmAddr">--</span>
+            <span class="wallet-info-value copyable" id="evmAddr" title="Click to copy">--</span>
           </div>
           <div class="wallet-info-item">
             <span class="wallet-info-label">Circle Address</span>
-            <span class="wallet-info-value" id="circleAddr">--</span>
+            <span class="wallet-info-value copyable" id="circleAddr" title="Click to copy">--</span>
           </div>
           <div class="wallet-info-item">
             <span class="wallet-info-label">Circle Wallet ID</span>
-            <span class="wallet-info-value" id="circleId">--</span>
+            <span class="wallet-info-value copyable" id="circleId" title="Click to copy">--</span>
           </div>
           <div class="wallet-info-item">
             <span class="wallet-info-label">Circle USDC Balance</span>
@@ -76,7 +79,7 @@
       <div class="card">
         <div class="card-label">Wallet Balance</div>
         <div class="card-value" id="walletBal">--</div>
-        <div class="card-sub" id="walletAddr">--</div>
+        <div class="card-sub copyable" id="walletAddr" title="Click to copy">--</div>
       </div>
       <div class="card">
         <div class="card-label">Model Capital</div>
