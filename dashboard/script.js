@@ -24,7 +24,7 @@ const timeStr = (iso) => {
     hour12: false,
   });
 };
-const ALLOC_COLORS = ["#a78bfa", "#2dd4bf", "#60a5fa", "#fbbf24", "#f87171", "#34d399"];
+const ALLOC_COLORS = ["#1c1e25", "#2dd4bf", "#f59e0b", "#a78bfa", "#f87171", "#10b981"];
 let allocChart, earnChart;
 function initCharts() {
   const doughnutCtx = document.getElementById("allocChart").getContext("2d");
@@ -32,7 +32,7 @@ function initCharts() {
     type: "doughnut",
     data: {
       labels: ["Idle"],
-      datasets: [{ data: [1], backgroundColor: ["#1e293b"], borderWidth: 0 }],
+      datasets: [{ data: [1], backgroundColor: ["#1c1e25"], borderWidth: 1, borderColor: "#282b34" }],
     },
     options: {
       cutout: "68%",
@@ -42,8 +42,8 @@ function initCharts() {
         legend: {
           position: "bottom",
           labels: {
-            color: "#94a3b8",
-            font: { size: 11, family: "Inter" },
+            color: "#e2e8f0",
+            font: { size: 11, family: "'Inter', sans-serif" },
             padding: 14,
           },
         },
@@ -66,20 +66,20 @@ function initCharts() {
           label: "Active (Agent)",
           data: [],
           borderColor: "#2dd4bf",
-          backgroundColor: "rgba(45,212,191,0.08)",
+          backgroundColor: "rgba(45,212,191,0.12)",
           fill: true,
           tension: 0.35,
-          pointRadius: 2,
+          pointRadius: 3,
           borderWidth: 2,
         },
         {
           label: "Passive (Benchmark)",
           data: [],
           borderColor: "#64748b",
-          backgroundColor: "rgba(100,116,139,0.05)",
+          backgroundColor: "rgba(100,116,139,0.06)",
           fill: true,
           tension: 0.35,
-          pointRadius: 2,
+          pointRadius: 3,
           borderWidth: 2,
           borderDash: [6, 3],
         },
@@ -93,27 +93,27 @@ function initCharts() {
         x: {
           display: true,
           ticks: {
-            color: "#475569",
-            font: { size: 10 },
+            color: "#94a3b8",
+            font: { size: 10, family: "'Inter', sans-serif" },
             maxTicksLimit: 8,
           },
-          grid: { color: "rgba(255,255,255,0.03)" },
+          grid: { color: "rgba(255,255,255,0.05)" },
         },
         y: {
           display: true,
           ticks: {
-            color: "#475569",
-            font: { size: 10 },
+            color: "#94a3b8",
+            font: { size: 10, family: "'Inter', sans-serif" },
             callback: (v) => "$" + v.toFixed(2),
           },
-          grid: { color: "rgba(255,255,255,0.04)" },
+          grid: { color: "rgba(255,255,255,0.05)" },
         },
       },
       plugins: {
         legend: {
           labels: {
-            color: "#94a3b8",
-            font: { size: 11, family: "Inter" },
+            color: "#e2e8f0",
+            font: { size: 11, family: "'Inter', sans-serif" },
             padding: 14,
           },
         },
@@ -131,7 +131,7 @@ function update(data) {
   if (!data || !data.agent) return;
   const running = data.agent.status === "running";
   $("#statusBadge").innerHTML =
-    `<span class="status-dot ${running ? "on" : "off"}" title="${running ? "Running" : data.agent.status === "waiting" ? "Waiting for Start" : "Stopped"}"></span>`;
+    `<span class="status-dot on" title="${running ? "Server & Agent Running" : "Server Running"}"></span>`;
   $("#cycleBadge").textContent = `Cycle #${data.agent.cycle}`;
   const btnStart = $("#btnStart");
   const btnStartText = $("#btnStartText");
@@ -326,16 +326,18 @@ function showWalletInfo(data) {
   $("#evmAddr").title = data.evm_address;
   $("#circleAddr").textContent = shortAddr(data.circle_address);
   $("#circleAddr").title = data.circle_address || "";
-  $("#circleId").textContent = data.circle_wallet_id ? data.circle_wallet_id.slice(0, 12) + "..." : "--";
+  $("#circleId").textContent = data.circle_wallet_id
+    ? data.circle_wallet_id.slice(0, 5) + "..." + data.circle_wallet_id.slice(-4)
+    : "--";
   $("#circleId").title = data.circle_wallet_id || "";
   $("#circleBal").textContent = usd(data.usdc_balance || 0, 6);
   const mode = data.mode || "simulated";
-  $("#circleMode").innerHTML =
-    mode === "live"
-      ? '<span class="badge badge-live">Live</span>'
-      : '<span class="badge badge-simulated">Simulated</span>';
-  if (data.is_new) {
-    $("#circleId").style.animation = "pulse 1s ease 3";
+  const circleModeEl = $("#circleMode");
+  if (circleModeEl) {
+    circleModeEl.innerHTML =
+      mode === "live"
+        ? '<span class="badge badge-live">Live</span>'
+        : '<span class="badge badge-simulated">Simulated</span>';
   }
 }
 async function toggleAgent() {
@@ -384,7 +386,7 @@ async function autoReconnect() {
       connectedAddress = saved;
       showWalletInfo(data);
     }
-  } catch (e) {}
+  } catch (e) { }
 }
 initCharts();
 poll();
