@@ -2,8 +2,6 @@ import sys
 from agent.config import ARC_TESTNET_RPC_URL, USDC_CONTRACT_ADDRESS
 from web3 import Web3
 
-# Minimal ERC-20 ABI — just the read-only metadata functions we need for
-# validating that USDC_CONTRACT_ADDRESS points to a real token contract.
 _ERC20_META_ABI = [
     {"constant": True, "inputs": [], "name": "name",     "outputs": [{"name": "", "type": "string"}], "type": "function"},
     {"constant": True, "inputs": [], "name": "symbol",   "outputs": [{"name": "", "type": "string"}], "type": "function"},
@@ -12,7 +10,6 @@ _ERC20_META_ABI = [
 
 
 def _query_usdc_contract(w3: Web3, address: str) -> dict:
-    """Query ERC-20 metadata from the USDC contract to verify the address."""
     checksum = Web3.to_checksum_address(address)
     contract = w3.eth.contract(address=checksum, abi=_ERC20_META_ABI)
     return {
@@ -43,7 +40,6 @@ def main() -> None:
     chain_id = w3.eth.chain_id
     block_number = w3.eth.block_number
 
-    # Validate the USDC contract address by querying on-chain metadata.
     usdc_info = None
     usdc_status = "NOT VERIFIED"
     try:

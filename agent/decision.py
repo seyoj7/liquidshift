@@ -7,14 +7,13 @@ from agent.data_feed import PoolSnapshot
 
 @dataclass
 class HeuristicParams:
-    """Simple tuning knobs."""
-    min_rebalance_interval_s: float = 15.0    # cooldown between rebalances
+    min_rebalance_interval_s: float = 15.0
 
 
 @dataclass
 class RebalanceDecision:
     timestamp: str
-    action: str           # hold | move_to_pool | withdraw_to_idle
+    action: str
     pool: str
     amount_usdc: float
     percent_of_capital: float
@@ -47,15 +46,6 @@ class AllocationState:
 
 
 class DecisionEngine:
-    """
-    Winner-takes-all yield allocator.
-
-    Strategy:
-      1. Find the single pool with the highest volume_1h / liquidity.
-      2. If all capital is not in this pool, withdraw from all other pools to idle.
-      3. Move all capital from idle to the best pool.
-    """
-
     def __init__(self, params: Optional[HeuristicParams] = None) -> None:
         self.params = params or HeuristicParams()
 
@@ -74,7 +64,6 @@ class DecisionEngine:
         if total_cap <= 0:
             return decisions
 
-        # ── Cooldown ─────────────────────────────────────────
         if state.last_rebalance_time is not None:
             elapsed = (now - state.last_rebalance_time).total_seconds()
             if elapsed < p.min_rebalance_interval_s:
@@ -82,7 +71,6 @@ class DecisionEngine:
                     decisions.append(self._hold(now, snap.pool, "Cooldown active"))
                 return decisions
 
-        # ── Find Best Pool ───────────────────────────────────
         best_pool = None
         max_yield = -1.0
         
@@ -97,10 +85,8 @@ class DecisionEngine:
                 decisions.append(self._hold(now, snap.pool, "Zero yield across all pools"))
             return decisions
 
-        # ── Check if we are already 100% in the best pool ──
         current_best_alloc = state.pool_allocations.get(best_pool, 0.0)
         
-        # If we are effectively 100% in the best pool and no idle capital
         if current_best_alloc >= total_cap * 0.999:
             for snap in snapshots:
                 decisions.append(
@@ -111,7 +97,6 @@ class DecisionEngine:
                 )
             return decisions
 
-        # ── Generate Withdraw Decisions ──────────────────────
         total_withdrawn = 0.0
         for pool_name, allocated_amount in state.pool_allocations.items():
             if pool_name != best_pool and allocated_amount > 0:
@@ -129,8 +114,6 @@ class DecisionEngine:
                 )
                 total_withdrawn += allocated_amount
                 
-        # ── Generate Move Decision ───────────────────────────
-        # We move everything: idle capital + what we just withdrew
         amount_to_move = round(state.idle_usdc + total_withdrawn, 2)
         if amount_to_move > 0:
             pct = amount_to_move / total_cap * 100
@@ -148,7 +131,6 @@ class DecisionEngine:
 
         return decisions
 
-    # ── helpers ───────────────────────────────────────────────
 
     @staticmethod
     def _hold(now: datetime, pool: str, reason: str) -> RebalanceDecision:
@@ -168,7 +150,6 @@ def apply_decisions(
     new_state = state.copy()
     any_action = False
     
-    # Process withdrawals first
     for d in decisions:
         if d.action == "withdraw_to_idle":
             current = new_state.pool_allocations.get(d.pool, 0.0)
@@ -177,7 +158,6 @@ def apply_decisions(
             new_state.idle_usdc += actual
             any_action = True
             
-    # Then process moves
     for d in decisions:
         if d.action == "move_to_pool":
             actual = min(d.amount_usdc, new_state.idle_usdc)

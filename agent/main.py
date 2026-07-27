@@ -114,7 +114,6 @@ class AgentLoop:
         with self._lock:
             self.last_snapshots = snapshots
         
-        # Don't accrue earnings on the very first cycle before funds are even deployed!
         if self.cycle_count > 1:
             self._accrue_earnings(snapshots)
             
@@ -245,17 +244,35 @@ _SESSION_WALLETS = {}
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/api/state":
+        clean_path = self.path.split("?")[0]
+        if clean_path == "/api/state":
             self._json_response(_agent.get_api_state() if _agent else {})
-        elif self.path == "/api/wallet/list":
+        elif clean_path == "/api/wallet/list":
             self._json_response({"wallets": list(_SESSION_WALLETS.values())})
-        elif self.path in ("/", "/index.html"):
+        elif clean_path in ("/", "/index.html"):
             self._file_response("index.html", "text/html")
-        elif self.path == "/favicon.ico":
-            self.send_response(204)
-            self.end_headers()
+        elif clean_path in ("/favicon.ico", "/favicon.png"):
+            self._file_response("logo/favicon.png", "image/png")
         else:
-            self.send_error(404)
+            rel_path = clean_path.lstrip("/")
+            fp = (DASHBOARD_DIR / rel_path).resolve()
+            if fp.exists() and fp.is_file() and DASHBOARD_DIR.resolve() in fp.parents:
+                mime = "text/plain"
+                if rel_path.endswith(".css"):
+                    mime = "text/css"
+                elif rel_path.endswith(".js"):
+                    mime = "application/javascript"
+                elif rel_path.endswith(".png"):
+                    mime = "image/png"
+                elif rel_path.endswith(".ico"):
+                    mime = "image/x-icon"
+                elif rel_path.endswith(".svg"):
+                    mime = "image/svg+xml"
+                elif rel_path.endswith(".json"):
+                    mime = "application/json"
+                self._file_response(rel_path, mime)
+            else:
+                self.send_error(404)
 
     def do_POST(self):
         if self.path == "/api/wallet/connect":
@@ -367,7 +384,7 @@ class _Handler(BaseHTTPRequestHandler):
             )
             self._json_response(result)
         except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
-            pass  # client hung up — wallet was created successfully
+            pass
         except Exception as exc:
             print(f"  [Wallet] ERROR: {exc}")
             try:
@@ -384,7 +401,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
-            pass  # client disconnected before we could respond
+            pass
 
     def _file_response(self, name: str, mime: str):
         fp = DASHBOARD_DIR / name
@@ -394,12 +411,13 @@ class _Handler(BaseHTTPRequestHandler):
         body = fp.read_bytes()
         try:
             self.send_response(200)
-            self.send_header("Content-Type", f"{mime}; charset=utf-8")
+            ct = f"{mime}; charset=utf-8" if mime.startswith("text/") or mime == "application/javascript" else mime
+            self.send_header("Content-Type", ct)
             self._cors_headers()
             self.end_headers()
             self.wfile.write(body)
         except (ConnectionAbortedError, BrokenPipeError, ConnectionResetError):
-            pass  # client disconnected before we could respond
+            pass
 
     def _cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")

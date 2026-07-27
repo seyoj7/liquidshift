@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional
 from agent.decision import RebalanceDecision
 
-# Default ledger file lives next to the project root so it survives restarts.
 _DEFAULT_LEDGER_PATH = str(Path(__file__).resolve().parent.parent / "data" / "ledger.json")
 
 _ledger_lock = threading.Lock()
@@ -21,7 +20,6 @@ def _resolve_path(ledger_path: Optional[str] = None) -> str:
 
 
 def _ensure_loaded(ledger_path: Optional[str] = None) -> None:
-    """Load existing entries from disk into memory (once)."""
     global _LEDGER_LOADED
     if _LEDGER_LOADED:
         return
@@ -39,7 +37,6 @@ def _ensure_loaded(ledger_path: Optional[str] = None) -> None:
 
 
 def _flush_to_disk(ledger_path: Optional[str] = None) -> None:
-    """Write the full in-memory ledger to disk (atomic-ish via temp file)."""
     path = Path(_resolve_path(ledger_path))
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")

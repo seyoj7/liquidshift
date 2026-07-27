@@ -158,11 +158,9 @@ def _simulated_snapshot(pool_name: str, ts: datetime, rng: random.Random) -> Poo
     phase = 2 * math.pi * (hour - peak) / 24.0
     time_mult = 1.0 + 0.6 * math.cos(phase)
     
-    # Generate smooth pseudo-random noise using multiple sine waves based on the timestamp
     t_seconds = ts.timestamp()
     pool_offset = hash(pool_name) % 10000
     
-    # Combine slow (hours), medium (minutes), and fast (seconds) waves
     wave1 = math.sin(t_seconds / 3600.0 + pool_offset)
     wave2 = math.sin(t_seconds / 600.0 + pool_offset * 2) * 0.5
     wave3 = math.sin(t_seconds / 120.0 + pool_offset * 3) * 0.25
@@ -177,7 +175,6 @@ def _simulated_snapshot(pool_name: str, ts: datetime, rng: random.Random) -> Poo
     daily_drift = 1.0 + 0.05 * math.sin(2 * math.pi * day_of_year / 30)
     volume_24h_avg = profile["base_volume"] * daily_drift
     
-    # Smooth liquidity noise
     liq_wave = math.cos(t_seconds / 1800.0 + pool_offset)
     liq_noise = 1.0 + (liq_wave * 0.02)
     
