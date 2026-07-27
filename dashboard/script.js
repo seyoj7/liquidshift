@@ -5,12 +5,16 @@ const API =
 const POLL_MS = 8000;
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
-const usd = (n, d = 2) =>
-  "$" +
-  Number(n).toLocaleString("en-US", {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
+const usd = (n, d = 2) => {
+  const digits = Math.min(d, 2);
+  return (
+    "$" +
+    Number(n).toLocaleString("en-US", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })
+  );
+};
 const pct = (n) => Number(n).toFixed(1) + "%";
 const shortAddr = (a) => (a ? a.slice(0, 6) + "..." + a.slice(-4) : "--");
 const shortHash = (h) => (h ? h.slice(0, 5) + "..." + h.slice(-4) : "--");
@@ -130,7 +134,7 @@ function initCharts() {
         },
         tooltip: {
           callbacks: {
-            label: (ctx) => " " + ctx.dataset.label + ": " + usd(ctx.parsed.y, 4),
+            label: (ctx) => " " + ctx.dataset.label + ": " + usd(ctx.parsed.y, 2),
           },
         },
       },
@@ -161,7 +165,7 @@ function update(data) {
     btnStartText.textContent = "Start";
     btnStart.disabled = false;
   }
-  $("#walletBal").textContent = usd(data.wallet.balance, 6);
+  $("#walletBal").textContent = usd(data.wallet.balance, 2);
   const wAddr = $("#walletAddr");
   if (wAddr) {
     wAddr.textContent = shortAddr(data.wallet.address);
@@ -171,8 +175,8 @@ function update(data) {
   $("#modelCap").textContent = usd(data.allocation.total, 0);
   const idlePct = data.allocation.total > 0 ? ((data.allocation.idle / data.allocation.total) * 100).toFixed(0) : "0";
   $("#idleAmt").textContent = usd(data.allocation.idle, 0) + " idle (" + idlePct + "%)";
-  $("#activeEarn").textContent = "+" + usd(data.earnings.active, 4);
-  $("#passiveEarn").textContent = "+" + usd(data.earnings.passive, 4);
+  $("#activeEarn").textContent = "+" + usd(data.earnings.active, 2);
+  $("#passiveEarn").textContent = "+" + usd(data.earnings.passive, 2);
   updateAllocChart(data.allocation);
   updateEarnChart(data.earnings);
   updateSignals(data.snapshots);
@@ -397,7 +401,7 @@ function showWalletInfo(data) {
     : "--";
   circleIdEl.dataset.fullText = data.circle_wallet_id || "";
   circleIdEl.title = data.circle_wallet_id ? "Click to copy: " + data.circle_wallet_id : "";
-  $("#circleBal").textContent = usd(data.usdc_balance || 0, 6);
+  $("#circleBal").textContent = usd(data.usdc_balance || 0, 2);
   const mode = data.mode || "simulated";
   const circleModeEl = $("#circleMode");
   if (circleModeEl) {
