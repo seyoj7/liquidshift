@@ -21,7 +21,8 @@
   <header class="header">
     <div class="header-inner">
       <div class="logo">
-        <img src="logo/favicon.png" alt="LiquidShift Logo" style="height: 28px; width: 28px; object-fit: contain; border-radius: 4px;" />
+        <img src="logo/favicon.png" alt="LiquidShift Logo"
+          style="height: 28px; width: 28px; object-fit: contain; border-radius: 4px;" />
         <div class="logo-text">LiquidShift</div>
         <span id="statusBadge" style="display: inline-flex; align-items: center"><span class="status-dot off"
             title="Connecting..."></span></span>
@@ -56,20 +57,16 @@
       <div style="display: flex; align-items: center; gap: 24px">
         <div class="wallet-info" id="walletInfo" style="display: none">
           <div class="wallet-info-item">
-            <span class="wallet-info-label">EVM Address</span>
-            <span class="wallet-info-value copyable" id="evmAddr" title="Click to copy">--</span>
-          </div>
-          <div class="wallet-info-item">
             <span class="wallet-info-label">Circle Address</span>
             <span class="wallet-info-value copyable" id="circleAddr" title="Click to copy">--</span>
           </div>
           <div class="wallet-info-item">
-            <span class="wallet-info-label">Circle Wallet ID</span>
-            <span class="wallet-info-value copyable" id="circleId" title="Click to copy">--</span>
+            <span class="wallet-info-label">EVM Address</span>
+            <span class="wallet-info-value copyable" id="evmAddr" title="Click to copy">--</span>
           </div>
           <div class="wallet-info-item">
-            <span class="wallet-info-label">Circle USDC Balance</span>
-            <span class="wallet-info-value" id="circleBal" style="color: var(--teal)">--</span>
+            <span class="wallet-info-label">Circle Wallet ID</span>
+            <span class="wallet-info-value copyable" id="circleId" title="Click to copy">--</span>
           </div>
         </div>
         <button class="btn-connect" id="btnStart" onclick="toggleAgent()"
@@ -137,27 +134,25 @@
     </div>
     <div class="table-wrap">
       <h2>Decision &amp; Execution Log</h2>
-      <div class="scroll-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Action</th>
-              <th>Pool</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Source</th>
-              <th>Tx</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody id="logBody"></tbody>
-        </table>
-      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Action</th>
+            <th>Pool</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Source</th>
+            <th>Tx</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
       <div class="empty" id="logEmpty">No decisions yet.</div>
     </div>
     <footer class="footer">
-      LiquidShift &middot; Autonomous USDC Liquidity Agent &middot; Arc Testnet &middot;
+      LiquidShift &middot; Autonomous USDC Liquidity Agent &middot; Arc Testnet
     </footer>
   </div>
   <script src="script.js"></script>

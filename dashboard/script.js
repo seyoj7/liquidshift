@@ -257,26 +257,18 @@ function updateSignals(snaps) {
 function updateLog(ledger) {
   const tbody = $("#logBody");
   const empty = $("#logEmpty");
-  if (!ledger || ledger.length === 0) {
+  const recent = (ledger || []).filter(e => e.action !== "wallet_created").slice(-50).reverse();
+  if (recent.length === 0) {
     tbody.innerHTML = "";
     empty.style.display = "block";
     return;
   }
   empty.style.display = "none";
-  const recent = ledger.slice(-50).reverse();
   let html = "";
   for (const e of recent) {
     const actionBadge = `<span class="badge badge-${e.action || "hold"}">${(e.action || "hold").replace(/_/g, " ")}</span>`;
     const statusBadge = `<span class="badge badge-${e.status || "skipped"}">${e.status || "?"}</span>`;
-    const src = e.inputs && e.inputs.source;
-    const isWalletCreated = e.action === "wallet_created";
-    const srcBadge = isWalletCreated
-      ? (src === "live"
-        ? '<span class="badge badge-live">Live</span>'
-        : src === "simulated"
-          ? '<span class="badge badge-simulated">Sim</span>'
-          : '<span class="badge badge-skipped">--</span>')
-      : '<span class="badge badge-simulated">SIM</span>';
+    const srcBadge = '<span class="badge badge-simulated">SIM</span>';
     const txLink = e.tx_hash
       ? `<a href="${e.explorer_url || "https://testnet.arcscan.app/tx/" + e.tx_hash}" target="_blank" rel="noopener">${shortHash(e.tx_hash)}</a>`
       : "--";
@@ -397,7 +389,8 @@ function showWalletInfo(data) {
     : "--";
   circleIdEl.dataset.fullText = data.circle_wallet_id || "";
   circleIdEl.title = data.circle_wallet_id ? "Click to copy: " + data.circle_wallet_id : "";
-  $("#circleBal").textContent = usd(data.usdc_balance || 0, 2);
+  const circleBalEl = $("#circleBal");
+  if (circleBalEl) { circleBalEl.textContent = usd(data.usdc_balance || 0, 2); }
   const mode = data.mode || "simulated";
   const circleModeEl = $("#circleMode");
   if (circleModeEl) {
