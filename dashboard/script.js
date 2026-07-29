@@ -97,7 +97,7 @@ function initCharts() {
       ],
     },
     options: {
-      responsive: false,
+      responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       scales: {
@@ -242,11 +242,6 @@ function resizeEarnCanvas(pointCount) {
   const neededWidth = Math.max(containerWidth, pointCount * pxPerPoint);
 
   inner.style.width = neededWidth + "px";
-  earnChart.canvas.width = neededWidth;
-  earnChart.canvas.style.width = neededWidth + "px";
-  earnChart.canvas.height = 260;
-  earnChart.canvas.style.height = "260px";
-  earnChart.resize(neededWidth, 260);
 }
 
 function zoomEarnChart(dir) {
