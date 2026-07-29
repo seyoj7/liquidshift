@@ -2,3 +2,4 @@
 /agent/scripts
 .env
 /data/
+.vscode

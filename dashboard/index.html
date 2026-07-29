@@ -106,9 +106,30 @@
         </div>
       </div>
       <div class="chart-wrap">
-        <h2>Earnings Comparison &mdash; Active vs Passive</h2>
-        <div class="chart-canvas-wrap">
-          <canvas id="earnChart"></canvas>
+        <div class="chart-header">
+          <h2>Earnings Comparison &mdash; Active vs Passive</h2>
+          <div class="zoom-pill" id="zoomControls">
+            <button class="zoom-pill-btn" id="zoomOut" onclick="zoomEarnChart(-1)" title="Zoom Out" aria-label="Zoom Out">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <span class="zoom-pill-val" id="zoomLevel" onclick="zoomEarnChart(0)" title="Click to reset zoom">100%</span>
+            <button class="zoom-pill-btn" id="zoomIn" onclick="zoomEarnChart(1)" title="Zoom In" aria-label="Zoom In">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+          </div>
+        </div>
+        <div class="chart-legend" id="earnLegend">
+          <span class="chart-legend-item">
+            <span class="chart-legend-box" style="background:rgba(45,212,191,0.12); border-color:#2dd4bf;"></span> Active (Agent)
+          </span>
+          <span class="chart-legend-item">
+            <span class="chart-legend-box chart-legend-box-dashed" style="background:rgba(100,116,139,0.06); border-color:#64748b;"></span> Passive (Benchmark)
+          </span>
+        </div>
+        <div class="chart-scroll-wrap" id="earnChartScroll">
+          <div class="chart-canvas-wrap chart-canvas-dynamic" id="earnChartInner">
+            <canvas id="earnChart"></canvas>
+          </div>
         </div>
       </div>
     </section>
@@ -134,22 +155,24 @@
     </div>
     <div class="table-wrap">
       <h2>Decision &amp; Execution Log</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Action</th>
-            <th>Pool</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Source</th>
-            <th>Tx</th>
-            <th>Reason</th>
-          </tr>
-        </thead>
-        <tbody id="logBody"></tbody>
-      </table>
-      <div class="empty" id="logEmpty">No decisions yet.</div>
+      <div class="scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Action</th>
+              <th>Pool</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Tx</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+        <div class="empty" id="logEmpty">No decisions yet.</div>
+      </div>
     </div>
     <footer class="footer">
       LiquidShift &middot; Autonomous USDC Liquidity Agent &middot; Arc Testnet

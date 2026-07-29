@@ -400,10 +400,133 @@ body {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.chart-header h2 {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.zoom-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 2px 4px;
+  gap: 2px;
+  user-select: none;
+}
+
+.zoom-pill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.zoom-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.zoom-pill-btn:active {
+  transform: scale(0.9);
+}
+
+.zoom-pill-val {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 0 4px;
+  cursor: pointer;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: -0.02em;
+  transition: color 0.15s ease;
+}
+
+.zoom-pill-val:hover {
+  color: var(--teal);
+}
+
 .chart-canvas-wrap {
   position: relative;
   width: 100%;
   height: 260px;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 0 0 12px;
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.69rem;
+  color: #e2e8f0;
+  font-family: 'Inter', sans-serif;
+}
+
+.chart-legend-box {
+  display: inline-block;
+  width: 40px;
+  height: 12px;
+  border: 2px solid;
+  border-radius: 2px;
+}
+
+.chart-legend-box-dashed {
+  border-style: dashed;
+}
+
+.chart-scroll-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  border-radius: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.chart-scroll-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.chart-scroll-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chart-scroll-wrap::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+
+.chart-scroll-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.chart-canvas-dynamic {
+  height: 260px;
+  min-width: 100%;
 }
 
 /* Badges & Tags */

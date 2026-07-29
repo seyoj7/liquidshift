@@ -97,7 +97,7 @@ function initCharts() {
       ],
     },
     options: {
-      responsive: true,
+      responsive: false,
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       scales: {
@@ -106,7 +106,9 @@ function initCharts() {
           ticks: {
             color: "#94a3b8",
             font: { size: 10, family: "'Inter', sans-serif" },
-            maxTicksLimit: 8,
+            maxRotation: 45,
+            autoSkip: true,
+            autoSkipPadding: 12,
           },
           grid: { color: "rgba(255,255,255,0.05)" },
         },
@@ -122,11 +124,7 @@ function initCharts() {
       },
       plugins: {
         legend: {
-          labels: {
-            color: "#e2e8f0",
-            font: { size: 11, family: "'Inter', sans-serif" },
-            padding: 14,
-          },
+          display: false,
         },
         tooltip: {
           callbacks: {
@@ -210,14 +208,62 @@ function updateAllocChart(alloc) {
   allocChart.data.datasets[0].backgroundColor = colors;
   allocChart.update();
 }
+const EARN_BASE_PX_PER_POINT = 40;
+let earnZoomScale = 1.0;
+let lastEarnHistoryLength = 0;
+
 function updateEarnChart(earnings) {
   const hist = earnings.history || [];
+  lastEarnHistoryLength = hist.length;
   const labels = hist.map((h) => timeStr(h.t));
   const active = hist.map((h) => h.a);
   const passive = hist.map((h) => h.p);
   earnChart.data.labels = labels;
   earnChart.data.datasets[0].data = active;
   earnChart.data.datasets[1].data = passive;
+
+  resizeEarnCanvas(hist.length);
+  earnChart.update();
+
+  // Auto-scroll to show latest data
+  const scrollWrap = document.getElementById("earnChartScroll");
+  if (scrollWrap && !scrollWrap.dataset.userScrolled) {
+    scrollWrap.scrollLeft = scrollWrap.scrollWidth;
+  }
+}
+
+function resizeEarnCanvas(pointCount) {
+  const scrollWrap = document.getElementById("earnChartScroll");
+  const inner = document.getElementById("earnChartInner");
+  if (!scrollWrap || !inner) return;
+
+  const containerWidth = scrollWrap.clientWidth;
+  const pxPerPoint = EARN_BASE_PX_PER_POINT * earnZoomScale;
+  const neededWidth = Math.max(containerWidth, pointCount * pxPerPoint);
+
+  inner.style.width = neededWidth + "px";
+  earnChart.canvas.width = neededWidth;
+  earnChart.canvas.style.width = neededWidth + "px";
+  earnChart.canvas.height = 260;
+  earnChart.canvas.style.height = "260px";
+  earnChart.resize(neededWidth, 260);
+}
+
+function zoomEarnChart(dir) {
+  if (dir === 0) {
+    earnZoomScale = 1.0;
+  } else if (dir > 0) {
+    earnZoomScale = Math.min(3.5, +(earnZoomScale + 0.25).toFixed(2));
+  } else {
+    earnZoomScale = Math.max(0.3, +(earnZoomScale - 0.25).toFixed(2));
+  }
+
+  const zoomLabel = document.getElementById("zoomLevel");
+  if (zoomLabel) {
+    zoomLabel.textContent = Math.round(earnZoomScale * 100) + "%";
+  }
+
+  resizeEarnCanvas(lastEarnHistoryLength);
   earnChart.update();
 }
 function updateSignals(snaps) {
@@ -474,3 +520,13 @@ document.addEventListener("click", (e) => {
     console.error("Clipboard copy failed:", err);
   });
 });
+
+const earnScrollWrap = document.getElementById("earnChartScroll");
+if (earnScrollWrap) {
+  earnScrollWrap.addEventListener("wheel", (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      zoomEarnChart(e.deltaY < 0 ? 1 : -1);
+    }
+  }, { passive: false });
+}
