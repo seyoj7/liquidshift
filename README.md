@@ -159,7 +159,7 @@ liquidshift/
 │   ├── index.html           # Single-page dashboard
 │   ├── script.js            # Polling, charts, wallet connect
 │   ├── styles.css           # Dark-theme UI
-│   └── logo/
+│   └── assets/
 │       └── favicon.png
 ├── data/
 │   └── ledger.json          # Persisted decision ledger

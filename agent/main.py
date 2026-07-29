@@ -252,7 +252,7 @@ class _Handler(BaseHTTPRequestHandler):
         elif clean_path in ("/", "/index.html"):
             self._file_response("index.html", "text/html")
         elif clean_path in ("/favicon.ico", "/favicon.png"):
-            self._file_response("logo/favicon.png", "image/png")
+            self._file_response("assets/favicon.png", "image/png")
         else:
             rel_path = clean_path.lstrip("/")
             fp = (DASHBOARD_DIR / rel_path).resolve()
