@@ -58,6 +58,7 @@ def _make_entry(
     error: Optional[str] = None,
     gas_used: Optional[int] = None,
     explorer_url: Optional[str] = None,
+    evm_address: Optional[str] = None,
 ) -> dict:
     return {
         "logged_at": datetime.now(timezone.utc).isoformat(),
@@ -75,6 +76,7 @@ def _make_entry(
         "balance_after_usdc": balance_after,
         "gas_used": gas_used,
         "error": error,
+        "evm_address": evm_address,
     }
 
 
@@ -88,6 +90,7 @@ def append_entry(
     error: Optional[str] = None,
     gas_used: Optional[int] = None,
     explorer_url: Optional[str] = None,
+    evm_address: Optional[str] = None,
     ledger_path: Optional[str] = None,
 ) -> dict:
     entry = _make_entry(
@@ -99,6 +102,7 @@ def append_entry(
         error=error,
         gas_used=gas_used,
         explorer_url=explorer_url,
+        evm_address=evm_address,
     )
     with _ledger_lock:
         _ensure_loaded(ledger_path)
@@ -111,6 +115,12 @@ def read_entries(ledger_path: Optional[str] = None) -> list[dict]:
     with _ledger_lock:
         _ensure_loaded(ledger_path)
         return list(_IN_MEMORY_LEDGER)
+
+
+def read_entries_for_wallet(evm_address: str, ledger_path: Optional[str] = None) -> list[dict]:
+    with _ledger_lock:
+        _ensure_loaded(ledger_path)
+        return [entry for entry in _IN_MEMORY_LEDGER if entry.get("evm_address") == evm_address]
 
 
 def print_ledger(ledger_path: Optional[str] = None) -> None:

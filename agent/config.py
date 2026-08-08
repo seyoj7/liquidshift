@@ -13,10 +13,6 @@ CIRCLE_API_KEY = os.getenv("CIRCLE_API_KEY", "")
 CIRCLE_ENTITY_SECRET = os.getenv("CIRCLE_ENTITY_SECRET", "")
 CIRCLE_WALLET_SET_ID = os.getenv("CIRCLE_WALLET_SET_ID", "")
 CIRCLE_ARC_USDC_TOKEN_ID = os.getenv("CIRCLE_ARC_USDC_TOKEN_ID", "")
-# Nanopayment fee charged by the Data Agent per pool-data request.
-# Intentionally set well below expected per-cycle strategy earnings so the
-# Strategy Agent remains net profitable.  Models Circle's Nanopayments
-# pattern for machine-to-machine microtransactions between autonomous agents.
 DATA_FEE_USDC = float(os.getenv("DATA_FEE_USDC", "0.0001"))
 CIRCLE_API_BASE = "https://api.circle.com/v1/w3s"
 ARC_BLOCKCHAIN = "ARC-TESTNET"

@@ -5,10 +5,11 @@ import os
 import sys
 import threading
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from agent.data_agent import request_pool_data, get_current_snapshots, POOLS, PoolSnapshot
@@ -41,6 +42,20 @@ FEE_RATE = 0.003
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
 
 
+@dataclass
+class _WalletSession:
+    evm_address: str
+    cycle_count: int = 0
+    earnings_active: float = 0.0
+    earnings_passive: float = 0.0
+    earnings_history: list[dict] = field(default_factory=lambda: [{"t": datetime.now(timezone.utc).isoformat(), "a": 0.0, "p": 0.0}])
+    state: Optional[AllocationState] = None
+    last_snapshots: list[PoolSnapshot] = field(default_factory=list)
+    data_fees_paid: float = 0.0
+    is_started: bool = False
+    start_time: Optional[datetime] = None
+    last_cycle_time: Optional[datetime] = None
+
 class AgentLoop:
     def __init__(self, *, interval_s: int = LOOP_INTERVAL_S):
         self.interval_s = interval_s
@@ -54,22 +69,11 @@ class AgentLoop:
             balance = float(read_usdc_balance(self.w3, self.wallet_address))
         else:
             balance = 0.0
-        pool_names = [p["name"] for p in POOLS]
-        self.state = AllocationState(
-            idle_usdc=MODEL_CAPITAL,
-            pool_allocations={name: 0.0 for name in pool_names},
-        )
-        self.earnings_active = 0.0
-        self.earnings_passive = 0.0
-        self.earnings_history: list[dict] = [{"t": datetime.now(timezone.utc).isoformat(), "a": 0.0, "p": 0.0}]
-        self.last_snapshots: list[PoolSnapshot] = []
+
+        self.wallet_sessions: Dict[str, _WalletSession] = {}
+        self.current_session: Optional[_WalletSession] = None
         self.data_agent_wallet: Optional[dict] = None
-        self.data_fees_paid = 0.0
-        self.cycle_count = 0
         self.running = False
-        self.is_started = False
-        self.start_time: Optional[datetime] = None
-        self.last_cycle_time: Optional[datetime] = None
         self.wallet_balance = balance
         self._lock = threading.Lock()
 
@@ -97,12 +101,12 @@ class AgentLoop:
         else:
             print("  Wallet        : Not connected (connect via dashboard)\n")
         while self.running:
-            if self.is_started:
+            if self.current_session and self.current_session.is_started:
                 try:
                     self._run_cycle()
                 except Exception as exc:
                     print(f"  [!!] Cycle error: {exc}")
-            sleep_time = self.interval_s if self.is_started else 1
+            sleep_time = self.interval_s if (self.current_session and self.current_session.is_started) else 1
             for _ in range(sleep_time):
                 if not self.running:
                     break
@@ -114,26 +118,29 @@ class AgentLoop:
 
     def _run_cycle(self) -> None:
         now = datetime.now(timezone.utc)
-        self.cycle_count += 1
-        print(f"  --- Cycle {self.cycle_count} @ {now.strftime('%H:%M:%S UTC')} ---")
+        
         with self._lock:
-            if not self.agent_wallet_id:
+            if not self.agent_wallet_id or not self.current_session:
                 print("  Waiting for EVM wallet connection via dashboard...")
                 return
             if not self.data_agent_wallet:
                 print("  Waiting for Data Agent wallet initialization...")
                 return
+            sess = self.current_session
+            sess.cycle_count += 1
+            print(f"  --- Cycle {sess.cycle_count} @ {now.strftime('%H:%M:%S UTC')} ---")
 
-        snapshots = request_pool_data(self.w3, self.agent_wallet_id, self.data_agent_wallet)
+        evm_address = sess.evm_address
+        snapshots = request_pool_data(self.w3, self.agent_wallet_id, self.data_agent_wallet, evm_address=evm_address)
         
         with self._lock:
-            self.last_snapshots = snapshots
-            self.data_fees_paid += DATA_FEE_USDC
+            sess.last_snapshots = snapshots
+            sess.data_fees_paid += DATA_FEE_USDC
         
-        if self.cycle_count > 1:
+        if sess.cycle_count > 1:
             self._accrue_earnings(snapshots)
             
-        decisions = self.engine.evaluate(snapshots, self.state, now=now)
+        decisions = self.engine.evaluate(snapshots, sess.state, now=now)
         for d in decisions:
             if d.action != "hold":
                 print(f"    >> {d.action}: ${d.amount_usdc:,.2f} -> {d.pool}")
@@ -142,11 +149,12 @@ class AgentLoop:
                     w3=self.w3,
                     agent_wallet_id=self.agent_wallet_id,
                     agent_wallet_address=self.wallet_address,
+                    evm_address=evm_address,
                 )
-        new_state = apply_decisions(self.state, decisions, now=now)
+        new_state = apply_decisions(sess.state, decisions, now=now)
         with self._lock:
-            self.state = new_state
-            self.last_cycle_time = now
+            sess.state = new_state
+            sess.last_cycle_time = now
             if self.wallet_address:
                 try:
                     self.wallet_balance = float(read_usdc_balance(self.w3, self.wallet_address))
@@ -155,13 +163,30 @@ class AgentLoop:
         sources = {s.source for s in snapshots}
         print(
             f"    data={','.join(sorted(sources))}  "
-            f"idle=${self.state.idle_usdc:,.0f}  "
-            f"active=+${self.earnings_active:,.4f}  "
-            f"passive=+${self.earnings_passive:,.4f}"
+            f"idle=${sess.state.idle_usdc:,.0f}  "
+            f"active=+${sess.earnings_active:,.4f}  "
+            f"passive=+${sess.earnings_passive:,.4f}"
         )
 
-    def update_active_wallet(self, circle_wallet_id: str, circle_address: str, mode: str):
+    def update_active_wallet(self, circle_wallet_id: str, circle_address: str, mode: str, evm_address: str):
         with self._lock:
+            # Pause current session if running
+            if self.current_session and self.current_session.is_started:
+                self.current_session.is_started = False
+                print(f"  [AgentLoop] Stopped agent for previous wallet: {self.wallet_address}")
+
+            if evm_address not in self.wallet_sessions:
+                pool_names = [p["name"] for p in POOLS]
+                new_state = AllocationState(
+                    idle_usdc=MODEL_CAPITAL,
+                    pool_allocations={name: 0.0 for name in pool_names},
+                )
+                self.wallet_sessions[evm_address] = _WalletSession(
+                    evm_address=evm_address,
+                    state=new_state
+                )
+
+            self.current_session = self.wallet_sessions[evm_address]
             self.agent_wallet_id = circle_wallet_id
             self.wallet_address = circle_address
             self.wallet_mode = mode
@@ -169,36 +194,47 @@ class AgentLoop:
                 self.wallet_balance = float(read_usdc_balance(self.w3, self.wallet_address))
             except Exception:
                 self.wallet_balance = 0.0
-            print(f"  [AgentLoop] Switched active wallet to: {self.wallet_address} ({self.wallet_mode})")
+            print(f"  [AgentLoop] Switched active wallet to: {self.wallet_address} ({self.wallet_mode}) for EVM: {evm_address}")
 
     def _accrue_earnings(self, snapshots: list[PoolSnapshot]) -> None:
         num_pools = max(len(snapshots), 1)
         active_delta = 0.0
         passive_delta = 0.0
         time_fraction = self.interval_s / 3600.0
-        for snap in snapshots:
-            if snap.liquidity <= 0:
-                continue
-            alloc = self.state.pool_allocations.get(snap.pool, 0.0)
-            if alloc > 0:
-                active_delta += snap.volume_1h * FEE_RATE * (alloc / snap.liquidity) * time_fraction
-            passive_alloc = MODEL_CAPITAL / num_pools
-            passive_delta += snap.volume_1h * FEE_RATE * (passive_alloc / snap.liquidity) * time_fraction
-        now = datetime.now(timezone.utc)
         with self._lock:
-            self.earnings_active += active_delta
-            self.earnings_passive += passive_delta
-            self.earnings_history.append(
+            if not self.current_session:
+                return
+            sess = self.current_session
+            for snap in snapshots:
+                if snap.liquidity <= 0:
+                    continue
+                alloc = sess.state.pool_allocations.get(snap.pool, 0.0)
+                if alloc > 0:
+                    active_delta += snap.volume_1h * FEE_RATE * (alloc / snap.liquidity) * time_fraction
+                passive_alloc = MODEL_CAPITAL / num_pools
+                passive_delta += snap.volume_1h * FEE_RATE * (passive_alloc / snap.liquidity) * time_fraction
+            now = datetime.now(timezone.utc)
+            sess.earnings_active += active_delta
+            sess.earnings_passive += passive_delta
+            sess.earnings_history.append(
                 {
                     "t": now.isoformat(),
-                    "a": round(self.earnings_active, 4),
-                    "p": round(self.earnings_passive, 4),
+                    "a": round(sess.earnings_active, 4),
+                    "p": round(sess.earnings_passive, 4),
                 }
             )
 
-    def get_api_state(self) -> dict:
+    def get_api_state(self, evm_address: Optional[str] = None) -> dict:
         with self._lock:
-            ledger = read_entries()
+            # If no specific address requested, use the current active one (for backwards compatibility if needed)
+            addr_to_use = evm_address if evm_address else next(iter(self.wallet_sessions), None)
+            sess = self.wallet_sessions.get(addr_to_use) if addr_to_use else None
+            
+            if not sess:
+                return {}
+                
+            from agent.ledger import read_entries_for_wallet
+            ledger = read_entries_for_wallet(addr_to_use)
             recent_ledger = ledger[-200:] if len(ledger) > 200 else ledger
             pool_cfgs = []
             for p in POOLS:
@@ -211,24 +247,24 @@ class AgentLoop:
                 )
             return {
                 "agent": {
-                    "status": ("running" if self.is_started else ("waiting" if self.running else "stopped")),
-                    "cycle": self.cycle_count,
+                    "status": ("running" if sess.is_started else "stopped"),
+                    "cycle": sess.cycle_count,
                     "interval_s": self.interval_s,
-                    "started": self.start_time.isoformat() if self.start_time else None,
-                    "last_cycle": (self.last_cycle_time.isoformat() if self.last_cycle_time else None),
+                    "started": sess.start_time.isoformat() if sess.start_time else None,
+                    "last_cycle": (sess.last_cycle_time.isoformat() if sess.last_cycle_time else None),
                     "model_capital": MODEL_CAPITAL,
                     "max_tx": TESTNET_MAX_TX_USDC,
                 },
                 "wallet": {
-                    "address": self.wallet_address,
-                    "balance": self.wallet_balance,
-                    "circle_wallet_id": self.agent_wallet_id,
-                    "mode": self.wallet_mode,
+                    "address": sess.evm_address,
+                    "balance": self.wallet_balance if self.current_session and self.current_session.evm_address == sess.evm_address else 0.0, # Approximate
+                    "circle_wallet_id": self.agent_wallet_id if self.current_session and self.current_session.evm_address == sess.evm_address else None,
+                    "mode": self.wallet_mode if self.current_session and self.current_session.evm_address == sess.evm_address else None,
                 },
                 "allocation": {
-                    "idle": round(self.state.idle_usdc, 2),
-                    "pools": {k: round(v, 2) for k, v in self.state.pool_allocations.items() if v > 0},
-                    "total": round(self.state.total_capital, 2),
+                    "idle": round(sess.state.idle_usdc, 2),
+                    "pools": {k: round(v, 2) for k, v in sess.state.pool_allocations.items() if v > 0},
+                    "total": round(sess.state.total_capital, 2),
                 },
                 "snapshots": [
                     {
@@ -240,14 +276,14 @@ class AgentLoop:
                         "vol": s.volatility,
                         "timestamp": s.timestamp,
                     }
-                    for s in self.last_snapshots
+                    for s in sess.last_snapshots
                 ],
                 "earnings": {
-                    "active": round(self.earnings_active, 4),
-                    "passive": round(self.earnings_passive, 4),
-                    "data_fees_paid": round(self.data_fees_paid, 6),
-                    "net_active": round(self.earnings_active - self.data_fees_paid, 4),
-                    "history": self.earnings_history[-200:],
+                    "active": round(sess.earnings_active, 4),
+                    "passive": round(sess.earnings_passive, 4),
+                    "data_fees_paid": round(sess.data_fees_paid, 6),
+                    "net_active": round(sess.earnings_active - sess.data_fees_paid, 4),
+                    "history": sess.earnings_history[-200:],
                 },
                 "ledger": recent_ledger,
                 "pools": pool_cfgs,
@@ -264,7 +300,26 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         clean_path = self.path.split("?")[0]
         if clean_path == "/api/state":
-            self._json_response(_agent.get_api_state() if _agent else {})
+            from urllib.parse import urlparse, parse_qs
+            query = parse_qs(urlparse(self.path).query)
+            evm_address = query.get("evm_address", [None])[0]
+            if evm_address:
+                try:
+                    from web3 import Web3
+                    evm_address = Web3.to_checksum_address(evm_address)
+                except Exception:
+                    pass
+            if evm_address and _agent:
+                # Set active wallet if not set (for auto-reconnect)
+                if evm_address in _SESSION_WALLETS and (_agent.current_session is None or _agent.current_session.evm_address != evm_address):
+                    wallet_info = _SESSION_WALLETS[evm_address]
+                    _agent.update_active_wallet(
+                        circle_wallet_id=wallet_info["circle_wallet_id"],
+                        circle_address=wallet_info["circle_address"],
+                        mode=wallet_info["mode"],
+                        evm_address=evm_address,
+                    )
+            self._json_response(_agent.get_api_state(evm_address) if _agent else {})
         elif clean_path == "/api/wallet/list":
             self._json_response({"wallets": list(_SESSION_WALLETS.values())})
         elif clean_path in ("/", "/index.html"):
@@ -303,21 +358,23 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def _handle_agent_start(self):
-        if not _agent.wallet_address:
+        if not _agent.wallet_address or not _agent.current_session:
             self._json_response({"error": "No wallet connected"}, status=400)
             return
         with _agent._lock:
-            if not _agent.is_started:
-                _agent.is_started = True
-                _agent.start_time = datetime.now(timezone.utc)
-                print("  [Agent] Started via dashboard.")
+            sess = _agent.current_session
+            if not sess.is_started:
+                sess.is_started = True
+                sess.start_time = datetime.now(timezone.utc)
+                print(f"  [Agent] Started via dashboard for wallet: {sess.evm_address}")
         self._json_response({"status": "started"})
 
     def _handle_agent_stop(self):
         with _agent._lock:
-            if _agent.is_started:
-                _agent.is_started = False
-                print("  [Agent] Stopped/Paused via dashboard.")
+            sess = _agent.current_session
+            if sess and sess.is_started:
+                sess.is_started = False
+                print(f"  [Agent] Stopped/Paused via dashboard for wallet: {sess.evm_address}")
         self._json_response({"status": "stopped"})
 
     def do_OPTIONS(self):
@@ -352,6 +409,7 @@ class _Handler(BaseHTTPRequestHandler):
                     circle_wallet_id=result["circle_wallet_id"],
                     circle_address=result["circle_address"],
                     mode=result["mode"],
+                    evm_address=evm_address,
                 )
                 print(f"  [Wallet] Reconnected: {evm_address[:10]}... " f"-> {existing['circle_wallet_id'][:8]}...")
                 self._json_response(result)
@@ -383,7 +441,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "source": wallet_info["mode"],
                 },
             )
-            append_entry(log_decision, status="executed")
+            append_entry(log_decision, status="executed", evm_address=evm_address)
             balance = get_circle_wallet_balance(wallet_info["circle_wallet_id"])
             result = {
                 **mapping,
@@ -394,6 +452,7 @@ class _Handler(BaseHTTPRequestHandler):
                 circle_wallet_id=result["circle_wallet_id"],
                 circle_address=result["circle_address"],
                 mode=result["mode"],
+                evm_address=evm_address,
             )
             print(
                 f"  [Wallet] NEW: {evm_address[:10]}... "

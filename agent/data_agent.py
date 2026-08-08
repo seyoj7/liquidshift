@@ -246,7 +246,7 @@ def get_current_snapshots(w3: Optional[Web3] = None) -> list[PoolSnapshot]:
     return results
 
 
-def request_pool_data(w3: Web3, strategy_wallet_id: str, data_agent_wallet: dict) -> list[PoolSnapshot]:
+def request_pool_data(w3: Web3, strategy_wallet_id: str, data_agent_wallet: dict, evm_address: Optional[str] = None) -> list[PoolSnapshot]:
     from agent.decision import RebalanceDecision
     from agent.ledger import append_entry
     from agent.config import DATA_FEE_USDC
@@ -274,7 +274,7 @@ def request_pool_data(w3: Web3, strategy_wallet_id: str, data_agent_wallet: dict
                 "data_agent_address": data_agent_address,
             },
         )
-        append_entry(log_decision, status="executed", tx_hash=transfer.get("tx_hash"))
+        append_entry(log_decision, status="executed", tx_hash=transfer.get("tx_hash"), evm_address=evm_address)
         
         # In a real system we might block here until the transaction confirms or we get a websocket push,
         # but the transfer_usdc function currently blocks and waits for INITIATED/PENDING to pass if live.

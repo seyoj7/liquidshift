@@ -46,11 +46,12 @@ def execute_decision(
     w3: Web3,
     agent_wallet_id: str,
     agent_wallet_address: str,
+    evm_address: Optional[str] = None,
 ) -> ExecutionResult:
 
     if decision.action == "hold":
         result = ExecutionResult(success=True, status="skipped")
-        append_entry(decision, status="skipped")
+        append_entry(decision, status="skipped", evm_address=evm_address)
         return result
     try:
         wallet_address = agent_wallet_address or ""
@@ -72,6 +73,7 @@ def execute_decision(
                 decision,
                 status="executed",
                 balance_before=balance_before,
+                evm_address=evm_address,
             )
             _log_result(decision, result)
             return result
@@ -115,6 +117,7 @@ def execute_decision(
                 balance_before=balance_before,
                 balance_after=balance_after,
                 explorer_url=explorer_url,
+                evm_address=evm_address,
             )
             _log_result(decision, result)
             return result
@@ -122,7 +125,7 @@ def execute_decision(
             raise ValueError(f"Unknown action: {decision.action}")
     except Exception as exc:
         result = ExecutionResult(success=False, error=str(exc), status="failed")
-        append_entry(decision, status="failed", error=str(exc))
+        append_entry(decision, status="failed", error=str(exc), evm_address=evm_address)
         _log_result(decision, result)
         return result
 

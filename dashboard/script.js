@@ -4,14 +4,12 @@ const API =
     : "/api/state";
 const POLL_MS = 8000;
 const $ = (s) => document.querySelector(s);
-const $$ = (s) => document.querySelectorAll(s);
 const usd = (n, d = 2) =>
   "$" +
   Number(n).toLocaleString("en-US", {
     minimumFractionDigits: d,
     maximumFractionDigits: d,
   });
-const pct = (n) => Number(n).toFixed(1) + "%";
 const shortAddr = (a) => (a ? a.slice(0, 6) + "..." + a.slice(-4) : "--");
 const shortHash = (h) => (h ? h.slice(0, 5) + "..." + h.slice(-4) : "--");
 const timeStr = (iso) => {
@@ -136,8 +134,32 @@ function initCharts() {
     },
   });
 }
+let lastRenderedAddress = null;
+
 function update(data) {
   if (!data || !data.agent) return;
+
+  const newAddr = data.wallet?.address;
+  if (lastRenderedAddress !== newAddr) {
+    if (earnChart) {
+      earnChart.data.labels = [];
+      earnChart.data.datasets[0].data = [];
+      earnChart.data.datasets[1].data = [];
+      earnChart.update();
+    }
+    const sigBody = $("#signalBody");
+    const sigEmpty = $("#signalEmpty");
+    if (sigBody) sigBody.innerHTML = "";
+    if (sigEmpty) sigEmpty.style.display = "block";
+    
+    const logBody = $("#logBody");
+    const logEmpty = $("#logEmpty");
+    if (logBody) logBody.innerHTML = "";
+    if (logEmpty) logEmpty.style.display = "block";
+
+    lastRenderedAddress = newAddr;
+  }
+
   const running = data.agent.status === "running";
   $("#statusBadge").innerHTML =
     `<span class="status-dot on" title="${running ? "Server & Agent Running" : "Server Running"}"></span>`;
@@ -328,10 +350,22 @@ function updateLog(ledger) {
   }
   tbody.innerHTML = html;
 }
+let isRegistering = false;
+
 async function poll() {
   try {
-    const res = await fetch(API);
+    const url = connectedAddress ? `${API}?evm_address=${connectedAddress}` : API;
+    const res = await fetch(url);
     const data = await res.json();
+    
+    // Self-healing: If frontend thinks we are connected, but backend lost the session
+    // (e.g. server restarted), the backend will return empty data (no agent/wallet).
+    if (connectedAddress && !isRegistering && (!data || Object.keys(data).length === 0 || !data.wallet)) {
+      console.warn("Backend session lost. Automatically re-registering...");
+      await registerWithBackend(connectedAddress, true);
+      return;
+    }
+    
     update(data);
   } catch (err) {
     $("#statusBadge").innerHTML = '<span class="status-dot off" title="Disconnected"></span>';
@@ -344,7 +378,7 @@ function disconnectWallet() {
   const info = $("#walletInfo");
 
   connectedAddress = null;
-  localStorage.removeItem("ls_evm_addr");
+  lastRenderedAddress = null;
 
   btn.classList.remove("connected");
   btnText.textContent = "Connect Wallet";
@@ -358,6 +392,44 @@ function disconnectWallet() {
   if (circleIdEl) { circleIdEl.textContent = "--"; circleIdEl.dataset.fullText = ""; }
   const circleBalEl = $("#circleBal");
   if (circleBalEl) { circleBalEl.textContent = "--"; }
+}
+
+async function registerWithBackend(address, silent = false) {
+  const btn = $("#btnConnect");
+  const btnText = $("#btnConnectText");
+  
+  if (!silent) {
+    btnText.textContent = "Registering...";
+    btn.disabled = true;
+  }
+  
+  isRegistering = true;
+  try {
+    const apiBase = API.replace("/api/state", "");
+    const res = await fetch(apiBase + "/api/wallet/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ evm_address: address }),
+    });
+    const data = await res.json();
+    
+    if (data.error) {
+      if (!silent) alert("Wallet connect error: " + data.error);
+      disconnectWallet();
+      return false;
+    }
+    
+    connectedAddress = data.evm_address || address;
+    showWalletInfo(data);
+    return true;
+  } catch (err) {
+    console.error("Wallet connect error:", err);
+    if (!silent) alert("Failed to connect wallet: " + (err.message || err));
+    disconnectWallet();
+    return false;
+  } finally {
+    isRegistering = false;
+  }
 }
 
 async function connectWallet() {
@@ -377,28 +449,14 @@ async function connectWallet() {
     const provider = new ethers.BrowserProvider(window.ethereum);
     const accounts = await provider.send("eth_requestAccounts", []);
     const address = accounts[0];
+    
     if (!address) {
       btnText.textContent = "Connect Wallet";
       btn.disabled = false;
       return;
     }
-    connectedAddress = address;
-    btnText.textContent = "Registering...";
-    const apiBase = API.replace("/api/state", "");
-    const res = await fetch(apiBase + "/api/wallet/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evm_address: address }),
-    });
-    const data = await res.json();
-    if (data.error) {
-      alert("Wallet connect error: " + data.error);
-      btnText.textContent = "Connect Wallet";
-      btn.disabled = false;
-      return;
-    }
-    showWalletInfo(data);
-    localStorage.setItem("ls_evm_addr", address);
+    
+    await registerWithBackend(address);
   } catch (err) {
     console.error("Wallet connect error:", err);
     alert("Failed to connect wallet: " + (err.message || err));
@@ -472,27 +530,28 @@ async function toggleAgent() {
     btnText.textContent = isRunning ? "Stop" : "Start";
   }
 }
-async function autoReconnect() {
-  const saved = localStorage.getItem("ls_evm_addr");
-  if (!saved) return;
-  try {
-    const apiBase = API.replace("/api/state", "");
-    const res = await fetch(apiBase + "/api/wallet/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evm_address: saved }),
-    });
-    const data = await res.json();
-    if (!data.error) {
-      connectedAddress = saved;
-      showWalletInfo(data);
-    }
-  } catch (e) { }
-}
+
 initCharts();
-autoReconnect();
 poll();
 setInterval(poll, POLL_MS);
+
+// Ethereum event listeners
+if (typeof window.ethereum !== "undefined") {
+  window.ethereum.on("accountsChanged", (accounts) => {
+    if (accounts.length === 0) {
+      console.log("Wallet disconnected in extension");
+      disconnectWallet();
+    } else if (connectedAddress && accounts[0].toLowerCase() !== connectedAddress.toLowerCase()) {
+      console.log("Wallet account switched in extension:", accounts[0]);
+      registerWithBackend(accounts[0], false);
+    }
+  });
+
+  window.ethereum.on("chainChanged", (_chainId) => {
+    // Standard web3 recommendation is to reload the page on chain change
+    window.location.reload();
+  });
+}
 
 document.addEventListener("click", (e) => {
   const target = e.target.closest(".copyable");
