@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from agent.data_feed import PoolSnapshot
+from agent.data_agent import PoolSnapshot
 
 
 @dataclass
@@ -172,7 +172,7 @@ def apply_decisions(
 
 
 def main() -> None:
-    from agent.data_feed import get_historical_snapshots
+    from agent.data_agent import get_historical_snapshots
 
     engine = DecisionEngine()
     state = AllocationState(idle_usdc=10000.0)

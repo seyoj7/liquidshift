@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from agent.data_feed import get_current_snapshots, POOLS, PoolSnapshot
+from agent.data_agent import request_pool_data, get_current_snapshots, POOLS, PoolSnapshot
 from agent.decision import (
     AllocationState,
     DecisionEngine,
@@ -31,6 +31,7 @@ from agent.config import (
     MODEL_CAPITAL_USDC,
     DASHBOARD_PORT,
     TESTNET_MAX_TX_USDC,
+    DATA_FEE_USDC,
 )
 
 LOOP_INTERVAL_S = AGENT_LOOP_INTERVAL_S
@@ -62,6 +63,8 @@ class AgentLoop:
         self.earnings_passive = 0.0
         self.earnings_history: list[dict] = [{"t": datetime.now(timezone.utc).isoformat(), "a": 0.0, "p": 0.0}]
         self.last_snapshots: list[PoolSnapshot] = []
+        self.data_agent_wallet: Optional[dict] = None
+        self.data_fees_paid = 0.0
         self.cycle_count = 0
         self.running = False
         self.is_started = False
@@ -78,6 +81,13 @@ class AgentLoop:
         if mode != "LIVE":
             print("    Set CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET, and")
             print("    CIRCLE_WALLET_SET_ID in .env to enable live transfers.")
+        
+        # Initialize the Data Agent wallet
+        try:
+            self.data_agent_wallet = create_circle_wallet("Data-Agent")
+            print(f"  Data Agent initialized (Wallet: {self.data_agent_wallet.get('circle_wallet_id', 'Unknown')})")
+        except Exception as exc:
+            print(f"  [!!] Failed to initialize Data Agent wallet: {exc}")
         print(f"  Agent loop thread started  interval={self.interval_s}s")
         print(f"  Model capital : ${MODEL_CAPITAL:,.2f}")
         if self.wallet_address:
@@ -110,9 +120,15 @@ class AgentLoop:
             if not self.agent_wallet_id:
                 print("  Waiting for EVM wallet connection via dashboard...")
                 return
-        snapshots = get_current_snapshots(self.w3)
+            if not self.data_agent_wallet:
+                print("  Waiting for Data Agent wallet initialization...")
+                return
+
+        snapshots = request_pool_data(self.w3, self.agent_wallet_id, self.data_agent_wallet)
+        
         with self._lock:
             self.last_snapshots = snapshots
+            self.data_fees_paid += DATA_FEE_USDC
         
         if self.cycle_count > 1:
             self._accrue_earnings(snapshots)
@@ -229,6 +245,8 @@ class AgentLoop:
                 "earnings": {
                     "active": round(self.earnings_active, 4),
                     "passive": round(self.earnings_passive, 4),
+                    "data_fees_paid": round(self.data_fees_paid, 6),
+                    "net_active": round(self.earnings_active - self.data_fees_paid, 4),
                     "history": self.earnings_history[-200:],
                 },
                 "ledger": recent_ledger,

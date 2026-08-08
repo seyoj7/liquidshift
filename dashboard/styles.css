@@ -606,6 +606,12 @@ body {
   border-color: var(--purple);
 }
 
+.badge-data_fee {
+  background: rgba(236, 72, 153, 0.15);
+  color: #ec4899;
+  border-color: #ec4899;
+}
+
 /* Tables Section */
 .table-wrap {
   background: var(--bg-card);

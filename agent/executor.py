@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Optional
 from web3 import Web3
 from agent.config import TESTNET_MAX_TX_USDC
-from agent.data_feed import POOLS
+from agent.data_agent import POOLS
 from agent.decision import RebalanceDecision
 from agent.ledger import append_entry
 from agent.circle_wallet import transfer_usdc, get_mode as circle_mode
