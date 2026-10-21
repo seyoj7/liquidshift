@@ -1,4 +1,4 @@
-# LiquidShift 🌊⚡
+# LiquidShift 🌊
 
 **Autonomous USDC Liquidity Reallocation Agent on Arc Testnet powered by Circle Programmable Wallets.**
 
