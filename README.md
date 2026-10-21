@@ -164,9 +164,6 @@ cp .env.example .env
 | `XYLONET_POOL_ADDRESS` | No | `""` | XyloNet pool address (enables live logs) |
 | `DEFIONARC_POOL_ADDRESS` | No | `""` | DefiOnARC pool address (enables live logs) |
 
-> [!NOTE]
-> If Circle credentials (`CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET`, `CIRCLE_WALLET_SET_ID`) are left blank, LiquidShift automatically operates in **SIMULATED** mode. All features—including wallet sessions, decision evaluations, earnings accrual, and dashboard telemetry—run seamlessly without external dependencies.
-
 ---
 
 ## 🚦 Verification & Running
