@@ -213,7 +213,3 @@ http://localhost:8080
 - **Rebalance Cooldown**: Built-in 15-second minimum interval between capital movements to avoid friction losses and high churn.
 
 ---
-
-## 📄 License
-
-[MIT License](LICENSE)
